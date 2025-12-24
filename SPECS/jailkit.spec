@@ -57,6 +57,9 @@ jk_uchroot, jk_update.
 %install
 %{__rm} -rf %{buildroot}
 %{__make} install DESTDIR="%{buildroot}"
+# Forbid ambiguous /usr/bin/python shebangs
+find %{buildroot}%{_sbindir} -maxdepth 1 -type f -name 'jk_*' -print0 | \
+  xargs -0r sed -i '1 s|^#! */usr/bin/python$|#!/usr/bin/python3|'
 %{__install} -Dp -m0755 extra/jailkit %{buildroot}%{_initrddir}/jailkit
 
 %post
