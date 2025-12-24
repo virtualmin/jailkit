@@ -1,0 +1,126 @@
+name: Build Jailkit (RPM)
+
+on:
+  push:
+    branches: [ "main" ]
+  pull_request:
+  workflow_dispatch:
+  release:
+    types: [ prereleased, released ]
+
+env:
+  TZ: Europe/Nicosia
+  JK_SHA256: "aa27dc1b2dbbbfcec2b970731f44ced7079afc973dc066757cea1beb4e8ce59c"
+
+jobs:
+  build-x86_64:
+    name: Build RPM (x86_64)
+    runs-on: ubuntu-latest
+    container:
+      image: rockylinux:8
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Install build deps
+        run: |
+          dnf -y install rpm-build make gcc autoconf automake \
+            glibc-devel libcap-devel python3 curl tar bzip2 patch findutils
+          ln -snf /usr/share/zoneinfo/$TZ /etc/localtime || true
+
+      - name: Read version from spec
+        run: |
+          JK_VER="$(rpmspec -q --qf '%{VERSION}\n' SPECS/jailkit.spec | head -n1)"
+          echo "JK_VER=$JK_VER" >> "$GITHUB_ENV"
+          echo "Building JK_VER=$JK_VER"
+
+      - name: Prepare rpmbuild tree
+        run: |
+          mkdir -p rpmbuild/{BUILD,BUILDROOT,RPMS,SOURCES,SPECS,SRPMS}
+          cp -v SPECS/jailkit.spec rpmbuild/SPECS/
+          cp -v SOURCES/* rpmbuild/SOURCES/ 2>/dev/null || true
+
+      - name: Fetch upstream tarball + verify sha256
+        run: |
+          curl -fsSL -o rpmbuild/SOURCES/jailkit-${JK_VER}.tar.bz2 \
+            "https://olivier.sessink.nl/jailkit/jailkit-${JK_VER}.tar.bz2"
+          echo "${JK_SHA256}  rpmbuild/SOURCES/jailkit-${JK_VER}.tar.bz2" | sha256sum -c -
+
+      - name: Build SRPM + RPM
+        run: |
+          rpmbuild \
+            --define "_topdir $PWD/rpmbuild" \
+            --define "dist %{nil}" \
+            -ba rpmbuild/SPECS/jailkit.spec
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: jailkit-rpm-x86_64
+          path: |
+            rpmbuild/RPMS/**/*.rpm
+            rpmbuild/SRPMS/*.src.rpm
+
+  build-aarch64:
+    name: Build RPM (aarch64)
+    runs-on: ubuntu-latest
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Set up QEMU
+        uses: docker/setup-qemu-action@v3
+
+      - name: Build inside Rocky 8 (arm64) container
+        uses: uraimo/run-on-arch-action@v3
+        with:
+          arch: none
+          distro: none
+          base_image: --platform=linux/arm64 arm64v8/rockylinux:8
+          githubToken: ${{ github.token }}
+          env: |
+            TZ: ${{ env.TZ }}
+            JK_SHA256: ${{ env.JK_SHA256 }}
+          install: |
+            dnf -y install rpm-build make gcc autoconf automake \
+              glibc-devel libcap-devel python3 curl tar bzip2 patch findutils
+            ln -snf /usr/share/zoneinfo/$TZ /etc/localtime || true
+          run: |
+            JK_VER="$(rpmspec -q --qf '%{VERSION}\n' SPECS/jailkit.spec | head -n1)"
+            echo "Building JK_VER=$JK_VER"
+
+            mkdir -p rpmbuild/{BUILD,BUILDROOT,RPMS,SOURCES,SPECS,SRPMS}
+            cp -v SPECS/jailkit.spec rpmbuild/SPECS/
+            cp -v SOURCES/* rpmbuild/SOURCES/ 2>/dev/null || true
+
+            curl -fsSL -o rpmbuild/SOURCES/jailkit-${JK_VER}.tar.bz2 \
+              "https://olivier.sessink.nl/jailkit/jailkit-${JK_VER}.tar.bz2"
+            echo "${JK_SHA256}  rpmbuild/SOURCES/jailkit-${JK_VER}.tar.bz2" | sha256sum -c -
+
+            rpmbuild --define "_topdir $PWD/rpmbuild" --define "dist %{nil}" -ba rpmbuild/SPECS/jailkit.spec
+
+            mkdir -p out
+            cp -v rpmbuild/RPMS/*/*.rpm out/
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: jailkit-rpm-aarch64
+          path: out/*.rpm
+
+  collect:
+    name: Collect (single artifact)
+    needs: [build-x86_64, build-aarch64]
+    runs-on: ubuntu-latest
+
+    steps:
+      - uses: actions/download-artifact@v4
+        with:
+          path: packages
+          merge-multiple: true
+
+      - run: find packages -type f -name "*.rpm" | sort
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: jailkit-rpms
+          path: packages
+          retention-days: 30

@@ -1,0 +1,6 @@
+rpmbuild/
+*.rpm
+*.src.rpm
+*.log
+out/
+packages/
