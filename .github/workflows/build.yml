@@ -25,7 +25,7 @@ jobs:
       - name: Install build deps
         run: |
           dnf -y install rpm-build make gcc autoconf automake \
-            glibc-devel libcap-devel python3 python3-unversioned-command \
+            glibc-devel libcap-devel python3 python-unversioned-command  \
             curl tar bzip2 patch findutils
           ln -snf /usr/share/zoneinfo/$TZ /etc/localtime || true
 
@@ -83,7 +83,7 @@ jobs:
             JK_SHA256: ${{ env.JK_SHA256 }}
           install: |
             dnf -y install rpm-build make gcc autoconf automake \
-              glibc-devel libcap-devel python3 python3-unversioned-command \
+              glibc-devel libcap-devel python3 python-unversioned-command  \
               curl tar bzip2 patch findutils
             ln -snf /usr/share/zoneinfo/$TZ /etc/localtime || true
           run: |
