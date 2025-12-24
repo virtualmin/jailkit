@@ -2,7 +2,7 @@ Name:           jailkit
 Version:        2.23
 Release:        1
 Summary:        Tools to generate chroot jails easily
-License:        LGPL-2.0-or-later
+License:        BSD-3-Clause AND LGPL-2.0-or-later
 URL:            https://olivier.sessink.nl/jailkit/
 
 Packager:       webmin/webmin-ci-cd <developers@virtualmin.com>
