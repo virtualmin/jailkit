@@ -25,8 +25,9 @@ jobs:
       - name: Install build deps
         run: |
           dnf -y install rpm-build make gcc autoconf automake \
-            glibc-devel libcap-devel python3 python-unversioned-command  \
+            glibc-devel libcap-devel python3 \
             curl tar bzip2 patch findutils
+          ln -sf /usr/bin/python3 /usr/bin/python || true
           ln -snf /usr/share/zoneinfo/$TZ /etc/localtime || true
 
       - name: Read version from spec
@@ -83,8 +84,9 @@ jobs:
             JK_SHA256: ${{ env.JK_SHA256 }}
           install: |
             dnf -y install rpm-build make gcc autoconf automake \
-              glibc-devel libcap-devel python3 python-unversioned-command  \
+              glibc-devel libcap-devel python3 \
               curl tar bzip2 patch findutils
+            ln -sf /usr/bin/python3 /usr/bin/python
             ln -snf /usr/share/zoneinfo/$TZ /etc/localtime || true
           run: |
             JK_VER="$(rpmspec -q --qf '%{VERSION}\n' SPECS/jailkit.spec | head -n1)"
