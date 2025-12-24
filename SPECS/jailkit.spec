@@ -51,7 +51,7 @@ jk_uchroot, jk_update.
 %patch2 -p0
 
 %build
-PYTHONINTERPRETER=/usr/bin/python3 %configure
+%configure PYTHON=/usr/bin/python3
 %{__make} %{?_smp_mflags}
 
 %install
