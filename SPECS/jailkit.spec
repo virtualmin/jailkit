@@ -50,7 +50,7 @@ jk_chrootsh, jk_cp, jk_init, jk_jailuser, jk_list, jk_lsh, jk_socketd,
 jk_uchroot, jk_update.
 
 %prep
-%setup -q
+%setup -q -n %{name}-%{upstream_version}
 %patch1 -p0 -b .makefile
 %patch2 -p0
 
