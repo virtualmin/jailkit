@@ -26,7 +26,7 @@ jobs:
     runs-on: ubuntu-latest
     container:
       image: rockylinux:8
-    if: ${{ github.event_name != 'push' || !contains(github.event.head_commit.message, '[no-build]') }}
+    if: ${{ !contains(github.event.head_commit.message, '[no-build]') }}
 
     steps:
       - uses: actions/checkout@v4
@@ -35,8 +35,7 @@ jobs:
         run: |
           dnf -y install rpm-build make gcc autoconf automake \
             glibc-devel libcap-devel python3 \
-            curl tar bzip2 patch findutils \
-            openssh-clients gnupg2
+            curl tar bzip2 patch findutils
           ln -sf /usr/bin/python3 /usr/bin/python || true
           ln -snf /usr/share/zoneinfo/$TZ /etc/localtime || true
 
@@ -45,9 +44,10 @@ jobs:
         shell: bash
         run: |
           rel="${{ github.event.release.tag_name }}"
-
+          
+          # Spec is source of truth for upstream version
           SPEC_VER="$(rpmspec -q --qf '%{VERSION}\n' SPECS/jailkit.spec | head -n1)"
-
+          
           # Accept: 2.23, v2.23, 2.23-4, v2.23-4
           if [[ "$rel" =~ ^v?([0-9]+(\.[0-9]+)+)(-([0-9]+))?$ ]]; then
             TAG_VER="${BASH_REMATCH[1]}"
@@ -57,16 +57,16 @@ jobs:
             echo "Bad release tag '$rel' (expected like ${SPEC_VER} or ${SPEC_VER}-2)" >&2
             exit 1
           fi
-
+          
           if [ "$TAG_VER" != "$SPEC_VER" ]; then
             echo "Tag version '$TAG_VER' does not match spec version '$SPEC_VER'" >&2
             exit 1
           fi
-
+          
           echo "UPSTREAM_VER=$SPEC_VER" >> "$GITHUB_ENV"
           echo "PKG_RELEASE=$PKGREL" >> "$GITHUB_ENV"
           echo "BUILD_NUMBER=" >> "$GITHUB_ENV"
-
+          
           grep -E '^(UPSTREAM_VER|PKG_RELEASE|BUILD_NUMBER)=' "$GITHUB_ENV" || true
 
       - name: Compute build number (non-release only)
@@ -109,42 +109,19 @@ jobs:
 
           rpmbuild "${args[@]}" -ba rpmbuild/SPECS/jailkit.spec
 
-      - name: Fetch bootstrap
-        if: ${{ github.event_name != 'pull_request' }}
-        run: curl -fsSLO ${{ env.BUILD_BOOTSTRAP }}
-
-      - name: Upload binaries (no artifacts)
-        if: ${{ github.event_name != 'pull_request' }}
-        env:
-          CLOUD__IP_ADDR: ${{ secrets.DEV_IP_ADDR }}
-          CLOUD__IP_KNOWN_HOSTS: ${{ secrets.DEV_IP_KNOWN_HOSTS }}
-          CLOUD__UPLOAD_SSH_USER: ${{ secrets.DEV_UPLOAD_SSH_USER }}
-          CLOUD__UPLOAD_SSH_DIR: ${{ env.IS_RELEASE == 'true' && secrets.PRERELEASE_UPLOAD_SSH_DIR || secrets.DEV_UPLOAD_SSH_DIR }}
-          CLOUD__SSH_PRV_KEY: ${{ secrets.DEV_SSH_PRV_KEY }}
-          CLOUD__GH_TOKEN: ${{ github.token }}
-        shell: bash
-        run: |
-          source bootstrap.bash \
-            $([[ "${{ env.IS_RELEASE }}" == "true" ]] && echo "--release" || echo "--testing") \
-            $([[ "${{ env.IS_PRERELEASE }}" == "true" ]] && echo "--prerelease")
-
-          mkdir -p "$ROOT_REPOS"
-
-          find rpmbuild/RPMS -type f -name 'jailkit-*.rpm' \
-            ! -name '*.src.rpm' \
-            ! -name '*debuginfo*' \
-            ! -name '*debugsource*' \
-            -exec cp -v {} "$ROOT_REPOS/" \;
-
-          upload_list=("$ROOT_REPOS/"*)
-          cloud_upload upload_list
+      - uses: actions/upload-artifact@v4
+        with:
+          name: jailkit-rpm-x86_64
+          path: |
+            rpmbuild/RPMS/**/*.rpm
+            rpmbuild/SRPMS/*.src.rpm
 
   build-aarch64:
     name: Build (aarch64)
     runs-on: ubuntu-24.04-arm
     container:
       image: rockylinux:8
-    if: ${{ github.event_name != 'push' || !contains(github.event.head_commit.message, '[no-build]') }}
+    if: ${{ !contains(github.event.head_commit.message, '[no-build]') }}
 
     steps:
       - uses: actions/checkout@v4
@@ -153,8 +130,7 @@ jobs:
         run: |
           dnf -y install rpm-build make gcc autoconf automake \
             glibc-devel libcap-devel python3 \
-            curl tar bzip2 patch findutils \
-            openssh-clients gnupg2
+            curl tar bzip2 patch findutils
           ln -sf /usr/bin/python3 /usr/bin/python || true
           ln -snf /usr/share/zoneinfo/$TZ /etc/localtime || true
 
@@ -163,9 +139,10 @@ jobs:
         shell: bash
         run: |
           rel="${{ github.event.release.tag_name }}"
-
+          
+          # Spec is source of truth for upstream version
           SPEC_VER="$(rpmspec -q --qf '%{VERSION}\n' SPECS/jailkit.spec | head -n1)"
-
+          
           # Accept: 2.23, v2.23, 2.23-4, v2.23-4
           if [[ "$rel" =~ ^v?([0-9]+(\.[0-9]+)+)(-([0-9]+))?$ ]]; then
             TAG_VER="${BASH_REMATCH[1]}"
@@ -175,16 +152,16 @@ jobs:
             echo "Bad release tag '$rel' (expected like ${SPEC_VER} or ${SPEC_VER}-2)" >&2
             exit 1
           fi
-
+          
           if [ "$TAG_VER" != "$SPEC_VER" ]; then
             echo "Tag version '$TAG_VER' does not match spec version '$SPEC_VER'" >&2
             exit 1
           fi
-
+          
           echo "UPSTREAM_VER=$SPEC_VER" >> "$GITHUB_ENV"
           echo "PKG_RELEASE=$PKGREL" >> "$GITHUB_ENV"
           echo "BUILD_NUMBER=" >> "$GITHUB_ENV"
-
+          
           grep -E '^(UPSTREAM_VER|PKG_RELEASE|BUILD_NUMBER)=' "$GITHUB_ENV" || true
 
       - name: Compute build number (non-release only)
@@ -227,41 +204,38 @@ jobs:
 
           rpmbuild "${args[@]}" -ba rpmbuild/SPECS/jailkit.spec
 
-      - name: Fetch bootstrap
-        if: ${{ github.event_name != 'pull_request' }}
-        run: curl -fsSLO ${{ env.BUILD_BOOTSTRAP }}
+      - uses: actions/upload-artifact@v4
+        with:
+          name: jailkit-rpm-aarch64
+          path: |
+            rpmbuild/RPMS/**/*.rpm
+            rpmbuild/SRPMS/*.src.rpm
 
-      - name: Upload binaries (no artifacts)
-        if: ${{ github.event_name != 'pull_request' }}
-        env:
-          CLOUD__IP_ADDR: ${{ secrets.DEV_IP_ADDR }}
-          CLOUD__IP_KNOWN_HOSTS: ${{ secrets.DEV_IP_KNOWN_HOSTS }}
-          CLOUD__UPLOAD_SSH_USER: ${{ secrets.DEV_UPLOAD_SSH_USER }}
-          CLOUD__UPLOAD_SSH_DIR: ${{ env.IS_RELEASE == 'true' && secrets.PRERELEASE_UPLOAD_SSH_DIR || secrets.DEV_UPLOAD_SSH_DIR }}
-          CLOUD__SSH_PRV_KEY: ${{ secrets.DEV_SSH_PRV_KEY }}
-          CLOUD__GH_TOKEN: ${{ github.token }}
-        shell: bash
-        run: |
-          source bootstrap.bash \
-            $([[ "${{ env.IS_RELEASE }}" == "true" ]] && echo "--release" || echo "--testing") \
-            $([[ "${{ env.IS_PRERELEASE }}" == "true" ]] && echo "--prerelease")
-
-          mkdir -p "$ROOT_REPOS"
-
-          find rpmbuild/RPMS -type f -name 'jailkit-*.rpm' \
-            ! -name '*.src.rpm' \
-            ! -name '*debuginfo*' \
-            ! -name '*debugsource*' \
-            -exec cp -v {} "$ROOT_REPOS/" \;
-
-          upload_list=("$ROOT_REPOS/"*)
-          cloud_upload upload_list
-
-  finalize:
-    name: Sign + rebuild repos
+  collect:
+    name: Collect
     needs: [build-x86_64, build-aarch64]
     runs-on: ubuntu-latest
-    if: ${{ github.event_name != 'pull_request' && (github.event_name != 'push' || !contains(github.event.head_commit.message, '[no-build]')) }}
+    if: ${{ !contains(github.event.head_commit.message, '[no-build]') }}
+
+    steps:
+      - uses: actions/download-artifact@v4
+        with:
+          path: packages
+          merge-multiple: true
+
+      - run: find packages -type f -name "jailkit-[0-9]*.*.rpm" | sort
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: jailkit-packages
+          path: packages
+          retention-days: 30
+
+  publish:
+    name: Publish using Webmin CI/CD
+    needs: [collect]
+    runs-on: ubuntu-latest
+    if: ${{ github.event_name != 'pull_request' && !contains(github.event.head_commit.message, '[no-build]') }}
 
     steps:
       - name: Install deps
@@ -270,10 +244,16 @@ jobs:
           sudo apt-get install -y ${{ env.BUILD_DEPS }}
           sudo timedatectl set-timezone ${{ env.TZ }}
 
+      - name: Download packages
+        uses: actions/download-artifact@v4
+        with:
+          name: jailkit-packages
+          path: packages
+
       - name: Fetch bootstrap
         run: curl -fsSLO ${{ env.BUILD_BOOTSTRAP }}
 
-      - name: Sign + rebuild repos
+      - name: Upload only main packages + sign + rebuild repos
         env:
           CLOUD__IP_ADDR: ${{ secrets.DEV_IP_ADDR }}
           CLOUD__IP_KNOWN_HOSTS: ${{ secrets.DEV_IP_KNOWN_HOSTS }}
@@ -287,4 +267,14 @@ jobs:
             $([[ "${{ env.IS_RELEASE }}" == "true" ]] && echo "--release" || echo "--testing") \
             $([[ "${{ env.IS_PRERELEASE }}" == "true" ]] && echo "--prerelease")
 
+          mkdir -p "$ROOT_REPOS"
+
+          find packages -type f -name 'jailkit-[0-9]*.x86_64.rpm' -exec cp -v {} "$ROOT_REPOS/" \;
+          find packages -type f -name 'jailkit-[0-9]*.*.x86_64.rpm' -exec cp -v {} "$ROOT_REPOS/" \;
+          
+          find packages -type f -name 'jailkit-[0-9]*.aarch64.rpm' -exec cp -v {} "$ROOT_REPOS/" \;
+          find packages -type f -name 'jailkit-[0-9]*.*.aarch64.rpm' -exec cp -v {} "$ROOT_REPOS/" \;
+
+          upload_list=("$ROOT_REPOS/"*)
+          cloud_upload upload_list
           cloud_sign_and_build_repos_auto virtualmin.dev
