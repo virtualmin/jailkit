@@ -39,16 +39,44 @@ jobs:
           ln -sf /usr/bin/python3 /usr/bin/python || true
           ln -snf /usr/share/zoneinfo/$TZ /etc/localtime || true
 
-      - name: Compute build number
+      - name: Parse release tag into upstream version + pkgrel (release only)
+        if: ${{ env.IS_RELEASE == 'true' }}
+        shell: bash
         run: |
-          if [ "${{ env.IS_RELEASE }}" = "false" ]; then
-            echo "BUILD_NUMBER=.$(date +%Y%m%d%H%M)" >> "$GITHUB_ENV"
+          rel="${{ github.event.release.tag_name }}"
+          
+          # Spec is source of truth for upstream version
+          SPEC_VER="$(rpmspec -q --qf '%{VERSION}\n' SPECS/jailkit.spec | head -n1)"
+          
+          # Accept: 2.23, v2.23, 2.23-4, v2.23-4
+          if [[ "$rel" =~ ^v?([0-9]+(\.[0-9]+)+)(-([0-9]+))?$ ]]; then
+            TAG_VER="${BASH_REMATCH[1]}"
+            PKGREL="${BASH_REMATCH[4]}"
+            [ -n "$PKGREL" ] || PKGREL=1
           else
-            echo "BUILD_NUMBER=" >> "$GITHUB_ENV"
+            echo "Bad release tag '$rel' (expected like ${SPEC_VER} or ${SPEC_VER}-2)" >&2
+            exit 1
           fi
+          
+          if [ "$TAG_VER" != "$SPEC_VER" ]; then
+            echo "Tag version '$TAG_VER' does not match spec version '$SPEC_VER'" >&2
+            exit 1
+          fi
+          
+          echo "UPSTREAM_VER=$SPEC_VER" >> "$GITHUB_ENV"
+          echo "PKG_RELEASE=$PKGREL" >> "$GITHUB_ENV"
+          echo "BUILD_NUMBER=" >> "$GITHUB_ENV"
+          
+          grep -E '^(UPSTREAM_VER|PKG_RELEASE|BUILD_NUMBER)=' "$GITHUB_ENV" || true
+
+      - name: Compute build number (non-release only)
+        if: ${{ env.IS_RELEASE != 'true' }}
+        run: |
+          echo "BUILD_NUMBER=.$(date +%Y%m%d%H%M)" >> "$GITHUB_ENV"
           grep '^BUILD_NUMBER=' "$GITHUB_ENV" || true
 
-      - name: Read upstream version from spec
+      - name: Read upstream version from spec (non-release only)
+        if: ${{ env.IS_RELEASE != 'true' }}
         run: |
           UPSTREAM_VER="$(rpmspec -q --qf '%{VERSION}\n' SPECS/jailkit.spec | head -n1)"
           echo "UPSTREAM_VER=$UPSTREAM_VER" >> "$GITHUB_ENV"
@@ -62,7 +90,6 @@ jobs:
 
       - name: Fetch upstream tarball + verify sha256
         run: |
-          UPSTREAM_VER="$(rpmspec -q --qf '%{VERSION}\n' SPECS/jailkit.spec | head -n1)"
           curl -fsSL -o rpmbuild/SOURCES/jailkit-${UPSTREAM_VER}.tar.bz2 \
             "https://olivier.sessink.nl/jailkit/jailkit-${UPSTREAM_VER}.tar.bz2"
           echo "${JK_SHA256}  rpmbuild/SOURCES/jailkit-${UPSTREAM_VER}.tar.bz2" | sha256sum -c -
@@ -101,16 +128,44 @@ jobs:
           ln -sf /usr/bin/python3 /usr/bin/python || true
           ln -snf /usr/share/zoneinfo/$TZ /etc/localtime || true
 
-      - name: Compute build number
+      - name: Parse release tag into upstream version + pkgrel (release only)
+        if: ${{ env.IS_RELEASE == 'true' }}
+        shell: bash
         run: |
-          if [ "${{ env.IS_RELEASE }}" = "false" ]; then
-            echo "BUILD_NUMBER=.$(date +%Y%m%d%H%M)" >> "$GITHUB_ENV"
+          rel="${{ github.event.release.tag_name }}"
+          
+          # Spec is source of truth for upstream version
+          SPEC_VER="$(rpmspec -q --qf '%{VERSION}\n' SPECS/jailkit.spec | head -n1)"
+          
+          # Accept: 2.23, v2.23, 2.23-4, v2.23-4
+          if [[ "$rel" =~ ^v?([0-9]+(\.[0-9]+)+)(-([0-9]+))?$ ]]; then
+            TAG_VER="${BASH_REMATCH[1]}"
+            PKGREL="${BASH_REMATCH[4]}"
+            [ -n "$PKGREL" ] || PKGREL=1
           else
-            echo "BUILD_NUMBER=" >> "$GITHUB_ENV"
+            echo "Bad release tag '$rel' (expected like ${SPEC_VER} or ${SPEC_VER}-2)" >&2
+            exit 1
           fi
+          
+          if [ "$TAG_VER" != "$SPEC_VER" ]; then
+            echo "Tag version '$TAG_VER' does not match spec version '$SPEC_VER'" >&2
+            exit 1
+          fi
+          
+          echo "UPSTREAM_VER=$SPEC_VER" >> "$GITHUB_ENV"
+          echo "PKG_RELEASE=$PKGREL" >> "$GITHUB_ENV"
+          echo "BUILD_NUMBER=" >> "$GITHUB_ENV"
+          
+          grep -E '^(UPSTREAM_VER|PKG_RELEASE|BUILD_NUMBER)=' "$GITHUB_ENV" || true
+
+      - name: Compute build number (non-release only)
+        if: ${{ env.IS_RELEASE != 'true' }}
+        run: |
+          echo "BUILD_NUMBER=.$(date +%Y%m%d%H%M)" >> "$GITHUB_ENV"
           grep '^BUILD_NUMBER=' "$GITHUB_ENV" || true
 
-      - name: Read upstream version from spec
+      - name: Read upstream version from spec (non-release only)
+        if: ${{ env.IS_RELEASE != 'true' }}
         run: |
           UPSTREAM_VER="$(rpmspec -q --qf '%{VERSION}\n' SPECS/jailkit.spec | head -n1)"
           echo "UPSTREAM_VER=$UPSTREAM_VER" >> "$GITHUB_ENV"
@@ -124,7 +179,6 @@ jobs:
 
       - name: Fetch upstream tarball + verify sha256
         run: |
-          UPSTREAM_VER="$(rpmspec -q --qf '%{VERSION}\n' SPECS/jailkit.spec | head -n1)"
           curl -fsSL -o rpmbuild/SOURCES/jailkit-${UPSTREAM_VER}.tar.bz2 \
             "https://olivier.sessink.nl/jailkit/jailkit-${UPSTREAM_VER}.tar.bz2"
           echo "${JK_SHA256}  rpmbuild/SOURCES/jailkit-${UPSTREAM_VER}.tar.bz2" | sha256sum -c -
