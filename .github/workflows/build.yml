@@ -9,6 +9,9 @@ on:
       - prereleased
       - released
 
+permissions:
+  contents: write
+  
 env:
   TZ: Europe/Nicosia
   JK_SHA256: "aa27dc1b2dbbbfcec2b970731f44ced7079afc973dc066757cea1beb4e8ce59c"
@@ -269,12 +272,42 @@ jobs:
 
           mkdir -p "$ROOT_REPOS"
 
-          find packages -type f -name 'jailkit-[0-9]*.x86_64.rpm' -exec cp -v {} "$ROOT_REPOS/" \;
-          find packages -type f -name 'jailkit-[0-9]*.*.x86_64.rpm' -exec cp -v {} "$ROOT_REPOS/" \;
-          
-          find packages -type f -name 'jailkit-[0-9]*.aarch64.rpm' -exec cp -v {} "$ROOT_REPOS/" \;
-          find packages -type f -name 'jailkit-[0-9]*.*.aarch64.rpm' -exec cp -v {} "$ROOT_REPOS/" \;
+          find packages -type f -name 'jailkit-*.rpm' \
+            ! -name '*.src.rpm' \
+            ! -name '*debuginfo*' \
+            ! -name '*debugsource*' \
+            -exec cp -v {} "$ROOT_REPOS/" \;
 
           upload_list=("$ROOT_REPOS/"*)
           cloud_upload upload_list
           cloud_sign_and_build_repos_auto virtualmin.dev
+
+  upload-release-assets:
+    name: Upload release assets (GA only)
+    needs: [build-x86_64, build-aarch64]
+    runs-on: ubuntu-latest
+    if: ${{ github.event_name == 'release' && github.event.release.prerelease == false }}
+
+    steps:
+      - name: Download build artifacts
+        uses: actions/download-artifact@v4
+        with:
+          path: dist
+          merge-multiple: true
+
+      - name: List files
+        run: |
+          find dist -type f -maxdepth 5 -print | sort
+
+      - name: Install GitHub CLI
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y gh
+
+      - name: Upload assets to GitHub Release
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          tag="${{ github.event.release.tag_name }}"
+          # Upload everything you built: main RPMs, debuginfo, debugsource, and SRPMs
+          gh release upload "$tag" dist/**/*.rpm dist/**/*.src.rpm --clobber
