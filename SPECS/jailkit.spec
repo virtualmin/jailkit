@@ -1,13 +1,17 @@
+%global upstream_version 2.23
+%global __requires_exclude_from ^/usr/(s)?bin/jk_.*
+
 Name:           jailkit
-Version:        2.23
-Release:        1
+Version:        %{upstream_version}%{?build_number}
+Release:        %{?pkgrel}%{!?pkgrel:1}%{?dist}
 Summary:        Tools to generate chroot jails easily
 License:        BSD-3-Clause AND LGPL-2.0-or-later
 URL:            https://olivier.sessink.nl/jailkit/
 
 Packager:       webmin/webmin-ci-cd <developers@virtualmin.com>
+Vendor:         Virtualmin
 
-Source0:        https://olivier.sessink.nl/jailkit/jailkit-%{version}.tar.bz2
+Source0:        https://olivier.sessink.nl/jailkit/jailkit-%{upstream_version}.tar.bz2
 Patch1:         jailkit-2.17-makefile.patch
 Patch2:         jailkit-jk_init-php.patch
 
@@ -51,16 +55,22 @@ jk_uchroot, jk_update.
 %patch2 -p0
 
 %build
-%configure PYTHON=/usr/bin/python3
+%configure PYTHON=%{__python3}
 %{__make} %{?_smp_mflags}
 
 %install
 %{__rm} -rf %{buildroot}
 %{__make} install DESTDIR="%{buildroot}"
-chmod u-s %{buildroot}%{_sbindir}/jk_chrootsh
-# Forbid ambiguous /usr/bin/python shebangs
+
+# Make sure jk_chrootsh is NOT setuid; we rely on file capabilities instead
+chmod u-s %{buildroot}%{_sbindir}/jk_chrootsh || true
+
+# Forbid ambiguous /usr/bin/python and /usr/libexec/platform-python shebangs
 find %{buildroot}%{_sbindir} -maxdepth 1 -type f -name 'jk_*' -print0 | \
-  xargs -0r sed -i '1 s|^#! */usr/bin/python$|#!/usr/bin/python3|'
+  xargs -0r sed -i \
+    -e '1 s|^#! */usr/bin/python$|#!/usr/bin/python3|' \
+    -e '1 s|^#! */usr/libexec/platform-python$|#!/usr/bin/python3|'
+
 %{__install} -Dp -m0755 extra/jailkit %{buildroot}%{_initrddir}/jailkit
 
 %post

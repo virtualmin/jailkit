@@ -13,6 +13,7 @@ env:
   TZ: Europe/Nicosia
   JK_SHA256: "aa27dc1b2dbbbfcec2b970731f44ced7079afc973dc066757cea1beb4e8ce59c"
 
+  PKG_RELEASE: ${{ github.run_attempt }}
   IS_RELEASE: ${{ github.event_name == 'release' }}
   IS_PRERELEASE: ${{ github.event.release.prerelease || false }}
 
@@ -38,11 +39,20 @@ jobs:
           ln -sf /usr/bin/python3 /usr/bin/python || true
           ln -snf /usr/share/zoneinfo/$TZ /etc/localtime || true
 
-      - name: Read version from spec
+      - name: Compute build number
         run: |
-          JK_VER="$(rpmspec -q --qf '%{VERSION}\n' SPECS/jailkit.spec | head -n1)"
-          echo "JK_VER=$JK_VER" >> "$GITHUB_ENV"
-          echo "Building JK_VER=$JK_VER"
+          if [ "${{ env.IS_RELEASE }}" = "false" ]; then
+            echo "BUILD_NUMBER=.$(date +%Y%m%d%H%M)" >> "$GITHUB_ENV"
+          else
+            echo "BUILD_NUMBER=" >> "$GITHUB_ENV"
+          fi
+          grep '^BUILD_NUMBER=' "$GITHUB_ENV" || true
+
+      - name: Read upstream version from spec
+        run: |
+          UPSTREAM_VER="$(rpmspec -q --qf '%{VERSION}\n' SPECS/jailkit.spec | head -n1)"
+          echo "UPSTREAM_VER=$UPSTREAM_VER" >> "$GITHUB_ENV"
+          grep '^UPSTREAM_VER=' "$GITHUB_ENV" || true
 
       - name: Prepare rpmbuild tree
         run: |
@@ -52,13 +62,18 @@ jobs:
 
       - name: Fetch upstream tarball + verify sha256
         run: |
-          curl -fsSL -o rpmbuild/SOURCES/jailkit-${JK_VER}.tar.bz2 \
-            "https://olivier.sessink.nl/jailkit/jailkit-${JK_VER}.tar.bz2"
-          echo "${JK_SHA256}  rpmbuild/SOURCES/jailkit-${JK_VER}.tar.bz2" | sha256sum -c -
+          UPSTREAM_VER="$(rpmspec -q --qf '%{VERSION}\n' SPECS/jailkit.spec | head -n1)"
+          curl -fsSL -o rpmbuild/SOURCES/jailkit-${UPSTREAM_VER}.tar.bz2 \
+            "https://olivier.sessink.nl/jailkit/jailkit-${UPSTREAM_VER}.tar.bz2"
+          echo "${JK_SHA256}  rpmbuild/SOURCES/jailkit-${UPSTREAM_VER}.tar.bz2" | sha256sum -c -
 
-      - name: Build RPM
+      - name: Build
         run: |
-          rpmbuild --define "_topdir $PWD/rpmbuild" --define "dist %{nil}" \
+          rpmbuild \
+            --define "_topdir $PWD/rpmbuild" \
+            --define "dist %{nil}" \
+            --define "build_number ${BUILD_NUMBER}" \
+            --define "pkgrel ${PKG_RELEASE}" \
             -ba rpmbuild/SPECS/jailkit.spec
 
       - uses: actions/upload-artifact@v4
@@ -67,8 +82,9 @@ jobs:
           path: |
             rpmbuild/RPMS/**/*.rpm
             rpmbuild/SRPMS/*.src.rpm
+
   build-aarch64:
-    name: Build RPM (aarch64)
+    name: Build (aarch64)
     runs-on: ubuntu-24.04-arm
     container:
       image: rockylinux:8
@@ -85,11 +101,20 @@ jobs:
           ln -sf /usr/bin/python3 /usr/bin/python || true
           ln -snf /usr/share/zoneinfo/$TZ /etc/localtime || true
 
-      - name: Read version from spec
+      - name: Compute build number
         run: |
-          JK_VER="$(rpmspec -q --qf '%{VERSION}\n' SPECS/jailkit.spec | head -n1)"
-          echo "JK_VER=$JK_VER" >> "$GITHUB_ENV"
-          echo "Building JK_VER=$JK_VER"
+          if [ "${{ env.IS_RELEASE }}" = "false" ]; then
+            echo "BUILD_NUMBER=.$(date +%Y%m%d%H%M)" >> "$GITHUB_ENV"
+          else
+            echo "BUILD_NUMBER=" >> "$GITHUB_ENV"
+          fi
+          grep '^BUILD_NUMBER=' "$GITHUB_ENV" || true
+
+      - name: Read upstream version from spec
+        run: |
+          UPSTREAM_VER="$(rpmspec -q --qf '%{VERSION}\n' SPECS/jailkit.spec | head -n1)"
+          echo "UPSTREAM_VER=$UPSTREAM_VER" >> "$GITHUB_ENV"
+          grep '^UPSTREAM_VER=' "$GITHUB_ENV" || true
 
       - name: Prepare rpmbuild tree
         run: |
@@ -99,22 +124,29 @@ jobs:
 
       - name: Fetch upstream tarball + verify sha256
         run: |
-          curl -fsSL -o rpmbuild/SOURCES/jailkit-${JK_VER}.tar.bz2 \
-            "https://olivier.sessink.nl/jailkit/jailkit-${JK_VER}.tar.bz2"
-          echo "${JK_SHA256}  rpmbuild/SOURCES/jailkit-${JK_VER}.tar.bz2" | sha256sum -c -
+          UPSTREAM_VER="$(rpmspec -q --qf '%{VERSION}\n' SPECS/jailkit.spec | head -n1)"
+          curl -fsSL -o rpmbuild/SOURCES/jailkit-${UPSTREAM_VER}.tar.bz2 \
+            "https://olivier.sessink.nl/jailkit/jailkit-${UPSTREAM_VER}.tar.bz2"
+          echo "${JK_SHA256}  rpmbuild/SOURCES/jailkit-${UPSTREAM_VER}.tar.bz2" | sha256sum -c -
 
-      - name: Build RPM
+      - name: Build
         run: |
-          rpmbuild --define "_topdir $PWD/rpmbuild" --define "dist %{nil}" \
+          rpmbuild \
+            --define "_topdir $PWD/rpmbuild" \
+            --define "dist %{nil}" \
+            --define "build_number ${BUILD_NUMBER}" \
+            --define "pkgrel ${PKG_RELEASE}" \
             -ba rpmbuild/SPECS/jailkit.spec
 
       - uses: actions/upload-artifact@v4
         with:
           name: jailkit-rpm-aarch64
-          path: rpmbuild/RPMS/**/*.rpm
+          path: |
+            rpmbuild/RPMS/**/*.rpm
+            rpmbuild/SRPMS/*.src.rpm
 
   collect:
-    name: Collect (single artifact)
+    name: Collect
     needs: [build-x86_64, build-aarch64]
     runs-on: ubuntu-latest
     if: ${{ !contains(github.event.head_commit.message, '[no-build]') }}
@@ -125,16 +157,16 @@ jobs:
           path: packages
           merge-multiple: true
 
-      - run: find packages -type f -name "jailkit-*.rpm" | sort
+      - run: find packages -type f -name "jailkit-[0-9]*.*.rpm" | sort
 
       - uses: actions/upload-artifact@v4
         with:
-          name: jailkit-rpms
+          name: jailkit-packages
           path: packages
           retention-days: 30
 
   publish:
-    name: Publish to cloud + rebuild repos
+    name: Publish using Webmin CI/CD
     needs: [collect]
     runs-on: ubuntu-latest
     if: ${{ github.event_name != 'pull_request' && !contains(github.event.head_commit.message, '[no-build]') }}
@@ -146,16 +178,16 @@ jobs:
           sudo apt-get install -y ${{ env.BUILD_DEPS }}
           sudo timedatectl set-timezone ${{ env.TZ }}
 
-      - name: Download packages artifact
+      - name: Download packages
         uses: actions/download-artifact@v4
         with:
-          name: jailkit-rpms
+          name: jailkit-packages
           path: packages
 
       - name: Fetch bootstrap
         run: curl -fsSLO ${{ env.BUILD_BOOTSTRAP }}
 
-      - name: Upload only main RPMs + sign + build repos
+      - name: Upload only main packages + sign + rebuild repos
         env:
           CLOUD__IP_ADDR: ${{ secrets.DEV_IP_ADDR }}
           CLOUD__IP_KNOWN_HOSTS: ${{ secrets.DEV_IP_KNOWN_HOSTS }}
@@ -171,8 +203,11 @@ jobs:
 
           mkdir -p "$ROOT_REPOS"
 
-          find packages -type f -name 'jailkit-[0-9]*.[0-9]*-[0-9]*.x86_64.rpm' -exec cp -v {} "$ROOT_REPOS/" \;
-          find packages -type f -name 'jailkit-[0-9]*.[0-9]*-[0-9]*.aarch64.rpm' -exec cp -v {} "$ROOT_REPOS/" \;
+          find packages -type f -name 'jailkit-[0-9]*.x86_64.rpm' -exec cp -v {} "$ROOT_REPOS/" \;
+          find packages -type f -name 'jailkit-[0-9]*.*.x86_64.rpm' -exec cp -v {} "$ROOT_REPOS/" \;
+          
+          find packages -type f -name 'jailkit-[0-9]*.aarch64.rpm' -exec cp -v {} "$ROOT_REPOS/" \;
+          find packages -type f -name 'jailkit-[0-9]*.*.aarch64.rpm' -exec cp -v {} "$ROOT_REPOS/" \;
 
           upload_list=("$ROOT_REPOS/"*)
           cloud_upload upload_list
