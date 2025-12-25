@@ -229,7 +229,7 @@ jobs:
         with:
           name: jailkit-packages
           path: packages
-          retention-days: 30
+          retention-days: 3
 
   publish:
     name: Publish using Webmin CI/CD
