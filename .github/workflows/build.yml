@@ -307,7 +307,9 @@ jobs:
       - name: Upload assets to GitHub Release
         env:
           GH_TOKEN: ${{ github.token }}
+        shell: bash
         run: |
           tag="${{ github.event.release.tag_name }}"
-          # Upload everything you built: main RPMs, debuginfo, debugsource, and SRPMs
-          gh release upload "$tag" dist/**/*.rpm dist/**/*.src.rpm --clobber
+          mapfile -t files < <(find dist -type f \( -name '*.rpm' -o -name '*.src.rpm' \) | sort)
+          ((${#files[@]})) || { echo "No RPMs found under dist/"; exit 1; }
+          gh release upload "$tag" "${files[@]}" --clobber --repo "${GITHUB_REPOSITORY}"
