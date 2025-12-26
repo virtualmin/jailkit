@@ -1,6 +1,6 @@
 # jailkit (RPM)
 
-[![Build Jailkit (RPM)](https://github.com/iliaross/jailkit/actions/workflows/build.yml/badge.svg)](https://github.com/iliaross/jailkit/actions/workflows/build.yml)
+[![Build Jailkit (RPM)](https://github.com/virtualmin/jailkit/actions/workflows/build.yml/badge.svg)](https://github.com/virtualmin/jailkit/actions/workflows/build.yml)
 
 This repo builds **Jailkit** RPMs for EL-based systems, using a **Rocky Linux 8** build root for both:
 - **x86_64**
