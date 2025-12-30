@@ -111,3 +111,34 @@ fi
 - Add arm64 support
 - Add python3 runtime dependency
 - Keep jk_chrootsh capability via %caps
+
+* Sun Aug 15 2021 Joe Cooper <joe@virtualmin.com> - 2.22-1
+- Bump rev to latest version
+- which fixes bogus includesections config in jk_init.ini
+
+* Sat Jan 04 2020 Joe Cooper <joe@virtualmin.com> - 2.21-1
+- Bump rev to latest version
+- Remove mention of jk_addjailuser (removed upstream)
+
+* Tue May 30 2017 Joe Cooper <joe@virtualmin.com> - 2.19-4
+- Patch jk_init.ini to include a php section
+
+* Tue Dec 06 2016 Joe Cooper <joe@virtualmin.com> - 2.19-1
+- Update to 2.19
+- Apply patch and changes suggested in https://bugzilla.redhat.com/show_bug.cgi?id=967782
+- setcap on jk_chrootsh with %caps macro
+
+* Wed Jun 02 2010 Steve Huff <shuff@vecna.org> - 2.11-1 - 8843/shuff
+- Updated to release 2.11.
+
+* Thu May 15 2008 Dries Verachtert <dries@ulyssis.org> - 2.5-1
+- Updated to release 2.5.
+
+* Tue Sep 12 2006 Dag Wieers <dag@wieers.com> - 2.1-1
+- Updated to release 2.1.
+
+* Sun Mar 19 2006 Dag Wieers <dag@wieers.com> - 2.0-1
+- Updated to release 2.0.
+
+* Fri May 20 2005 Dag Wieers <dag@wieers.com> - 1.3-1
+- Initial package. (using DAR)
