@@ -1,4 +1,4 @@
-name: "virtualmin.dev: virtualmin/jailkit"
+name: Build
 
 on:
   push:
